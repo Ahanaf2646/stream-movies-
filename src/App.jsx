@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
-import Search from './components/Search.jsx'
-import Spinner from './components/Spinner.jsx';
-import MovieCard from './components/MovieCard.jsx';
+import { useEffect, useState } from 'react'; // Import React hooks for managing state and side effects
+import Search from './components/Search.jsx'  // Import the Search component for searching movies
+import Spinner from './components/Spinner.jsx'; // Import the Spinner component for loading state
+import MovieCard from './components/MovieCard.jsx'; // Import the MovieCard component
 import {useDebounce} from 'react-use'; // Assuming useDebounce is a custom hook for debouncing input changes
+import { UpdateSearchCount } from './appwrite.js'; // Import the function to update search count
 
 const API_BASE_URL = 'https://api.themoviedb.org/3';
 
@@ -18,15 +19,19 @@ const API_OPTIONS = {
 
 const App = () => { 
   const [searchTerm, setSearchTerm] = useState(''); // Placeholder for state, if needed later
-  const [errorMessage, setErrorMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState(''); // State to hold error messages
   const [movieList, setMovieList] = useState([]); // State to hold movie list
   const [isLoading, setIsLoading] = useState(false); // State to manage loading state
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(''); // Debounce the search term
+  const [trendingMovies, setTrendingMovies] = useState([]); // State to hold trending movies
+
+
+
 
   
   // Debounce the search term to avoid too many API calls
   // Adjust the debounce time as needed
-  useDebounce(() => setDebouncedSearchTerm(searchTerm), ms => 500, [searchTerm]); // Debounce the search term for 500ms
+  useDebounce(() => setDebouncedSearchTerm(searchTerm),500, [searchTerm]); // Debounce the search term for 500ms
 
   const fetchMovies = async (query = '') => {
 
@@ -52,8 +57,9 @@ const App = () => {
 
       setMovieList(data.results || []); // Set the movie list state
 
-      // Process the movie data as needed
-
+      if (query && data.results.length > 0) { 
+        await UpdateSearchCount(query, data.results[0]); // Update search count for the first movie in the results
+       } 
     } catch (error) {
       console.error('Error fetching movies:', error);
       setErrorMessage('Failed to fetch movies. Please try again later.');
@@ -62,9 +68,22 @@ const App = () => {
     }
   };
 
+  const loadTrendingMovies = async () => {
+    try {
+      const movies = await getTrendingMovies(); // Fetch trending movies from Appwrite
+      setTrendingMovies(movies);
+    } catch (error) {
+      console.error(`Error fetching trending movies: ${error}`);
+    }
+  };
+
   useEffect(() => {
     fetchMovies(debouncedSearchTerm);
   }, [debouncedSearchTerm]); // Fetch movies when the component mounts or searchTerm changes
+
+  useEffect(() => {
+    loadTrendingMovies(); // Load trending movies when the component mounts
+  }, []); // Empty dependency array means this effect runs once when the component mounts
 
 
   return (
@@ -78,9 +97,22 @@ const App = () => {
          <Search searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
       </header>
 
-      
-        <section className='all-movies'> 
-          <h2 className='mt-[40px]'>All Movies</h2>
+      {trendingMovies.length > 0 && (
+        <section className='trending'>
+          <h2>Trending Movies</h2>
+          <ul>
+            {trendingMovies.map((movie, index) => (
+              <li key={movie.$id}>
+                <p>{index + 1}</p>
+                <img src={movie.poster_url} alt={movie.title} />
+                </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section className="all-movies"> 
+          <h2>All Movies</h2>
 
           {isLoading ? (
             
